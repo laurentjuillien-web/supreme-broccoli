@@ -33,7 +33,7 @@ if st.button("🚀 Lancer le scan du marché", type="primary"):
             if len(df_daily) < 50 or len(df_weekly) < 20:
                 continue
                 
-            # Calcul RSI simple maison (sans pandas_ta)
+            # Calcul RSI simple maison
             delta = df_daily['Close'].diff()
             gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
             loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
@@ -46,14 +46,14 @@ if st.button("🚀 Lancer le scan du marché", type="primary"):
             resistance_hebdo = df_weekly['High'].rolling(window=20).max().iloc[-1]
             
             dernier = df_daily.iloc[-1]
-            precedent = df_daily.iloc[-2]
             
-            # Condition simple de rebond sur support
-            if dernier['Close'] >= support_hebdo * 0.99 and dernier['Close'] <= support_hebdo * 1.03:
+            # Zone élargie (de 97% à 105% du support hebdomadaire)
+            if dernier['Close'] >= support_hebdo * 0.97 and dernier['Close'] <= support_hebdo * 1.05:
                 results.append({
                     "Ticker": ticker,
                     "Prix Actuel": round(dernier['Close'], 2),
                     "Support Hebdo": round(support_hebdo, 2),
+                    "Écart / Support": f"{round(((dernier['Close'] - support_hebdo) / support_hebdo) * 100, 1)} %",
                     "RSI (14)": round(dernier['RSI'], 1),
                     "Volume / Moy20": round(dernier['Volume'] / dernier['Vol_SMA20'], 2) if dernier['Vol_SMA20'] > 0 else 0
                 })
@@ -65,7 +65,7 @@ if st.button("🚀 Lancer le scan du marché", type="primary"):
     
     if results:
         df_res = pd.DataFrame(results)
-        st.success(f"Scan terminé ! {len(results)} opportunité(s) détectée(s).")
+        st.success(f"Scan terminé ! {len(results)} opportunité(s) détectée(s) dans la zone élargie.")
         st.dataframe(df_res, use_container_width=True)
     else:
-        st.info("Aucune configuration de rebond exacte détectée aujourd'hui sur ces critères.")
+        st.info("Aucune action dans la zone cible aujourd'hui.")
