@@ -1,14 +1,15 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
+import ta
 import requests
 
 st.set_page_config(page_title="Scan Boursier Hebdo", layout="wide")
 
 st.title("📈 Mon Radar Boursier & Plan de Commerce")
-st.markdown("Analyse et diagnostic global des supports hebdomadaires (CAC 40/SRD).")
+st.markdown("Analyse automatique des rebonds sur supports hebdomadaires (CAC 40/SRD).")
 
-if st.button("🚀 Lancer le diagnostic complet", type="primary"):
+if st.button("🚀 Lancer le scan du marché", type="primary"):
     
     tickers = [
         "AIR.PA", "BNP.PA", "DG.PA", "OR.PA", "SAN.PA", "TTE.PA", "CAP.PA", "GLE.PA",
@@ -17,9 +18,8 @@ if st.button("🚀 Lancer le diagnostic complet", type="primary"):
         "RMS.PA", "RNO.PA", "SAF.PA", "SGO.PA", "STLA.PA", "STM.PA", "SU.PA", "VIE.PA", "VIV.PA"
     ]
     
-    # Session personnalisée pour contourner les restrictions de Yahoo Finance sur le Cloud
     session = requests.Session()
-    session.headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    session.headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     
     results = []
     text_prog = st.empty()
@@ -38,27 +38,20 @@ if st.button("🚀 Lancer le diagnostic complet", type="primary"):
             if df_daily.empty or df_weekly.empty or len(df_daily) < 50 or len(df_weekly) < 20:
                 continue
                 
-            delta = df_daily['Close'].diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-            rs = gain / loss
-            df_daily['RSI'] = 100 - (100 / (1 + rs))
-            
-            df_daily['Vol_SMA20'] = df_daily['Volume'].rolling(window=20).mean()
+            # Calculs officiels avec la bibliothèque ta
+            df_daily['RSI'] = ta.momentum.rsi(df_daily['Close'], window=14)
             
             support_hebdo = df_weekly['Low'].rolling(window=20).min().iloc[-1]
             dernier = df_daily.iloc[-1]
             
-            ecart_pct = ((dernier['Close'] - support_hebdo) / support_hebdo) * 100
-            
-            results.append({
-                "Ticker": ticker,
-                "Prix Actuel": round(dernier['Close'], 2),
-                "Support Hebdo (Min 20s)": round(support_hebdo, 2),
-                "Écart / Support (%)": round(ecart_pct, 1),
-                "RSI (14)": round(dernier['RSI'], 1),
-                "Volume / Moy20": round(dernier['Volume'] / dernier['Vol_SMA20'], 2) if dernier['Vol_SMA20'] > 0 else 0
-            })
+            # Condition de prix initiale (99% à 103% du support)
+            if dernier['Close'] >= support_hebdo * 0.99 and dernier['Close'] <= support_hebdo * 1.03:
+                results.append({
+                    "Ticker": ticker,
+                    "Prix Actuel": round(dernier['Close'], 2),
+                    "Support Hebdo": round(support_hebdo, 2),
+                    "RSI (14)": round(dernier['RSI'], 1) if pd.notna(dernier['RSI']) else 0
+                })
         except Exception as e:
             continue
             
@@ -67,8 +60,7 @@ if st.button("🚀 Lancer le diagnostic complet", type="primary"):
     
     if results:
         df_res = pd.DataFrame(results)
-        df_res = df_res.sort_values(by="Écart / Support (%)", ascending=True)
-        st.success(f"Diagnostic terminé ! {len(results)} actions analysées avec succès.")
+        st.success(f"Scan terminé ! {len(results)} opportunité(s) détectée(s).")
         st.dataframe(df_res, use_container_width=True)
     else:
-        st.info("Aucune donnée récupérée. Les serveurs Yahoo bloquent temporairement les requêtes.")
+        st.info("Aucune configuration de rebond exacte détectée aujourd'hui sur ces critères.")
