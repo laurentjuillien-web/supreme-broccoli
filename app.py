@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
+import requests
 
 st.set_page_config(page_title="Scan Boursier Hebdo", layout="wide")
 
@@ -16,6 +17,10 @@ if st.button("🚀 Lancer le diagnostic complet", type="primary"):
         "RMS.PA", "RNO.PA", "SAF.PA", "SGO.PA", "STLA.PA", "STM.PA", "SU.PA", "VIE.PA", "VIV.PA"
     ]
     
+    # Session personnalisée pour contourner les restrictions de Yahoo Finance sur le Cloud
+    session = requests.Session()
+    session.headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    
     results = []
     text_prog = st.empty()
     progress_bar = st.progress(0)
@@ -26,11 +31,11 @@ if st.button("🚀 Lancer le diagnostic complet", type="primary"):
         progress_bar.progress((i + 1) / total)
         
         try:
-            stock = yf.Ticker(ticker)
+            stock = yf.Ticker(ticker, session=session)
             df_daily = stock.history(period="1 an", interval="1d")
             df_weekly = stock.history(period="2 ans", interval="1wk")
             
-            if len(df_daily) < 50 or len(df_weekly) < 20:
+            if df_daily.empty or df_weekly.empty or len(df_daily) < 50 or len(df_weekly) < 20:
                 continue
                 
             delta = df_daily['Close'].diff()
@@ -62,9 +67,8 @@ if st.button("🚀 Lancer le diagnostic complet", type="primary"):
     
     if results:
         df_res = pd.DataFrame(results)
-        # Tri pour voir les actions les plus proches du support en premier
         df_res = df_res.sort_values(by="Écart / Support (%)", ascending=True)
-        st.success(f"Diagnostic terminé ! {len(results)} actions analysées.")
+        st.success(f"Diagnostic terminé ! {len(results)} actions analysées avec succès.")
         st.dataframe(df_res, use_container_width=True)
     else:
-        st.info("Aucune donnée récupérée.")
+        st.info("Aucune donnée récupérée. Les serveurs Yahoo bloquent temporairement les requêtes.")
