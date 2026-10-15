@@ -5,9 +5,9 @@ import yfinance as yf
 st.set_page_config(page_title="Scan Boursier Hebdo", layout="wide")
 
 st.title("📈 Mon Radar Boursier & Plan de Commerce")
-st.markdown("Analyse automatique des rebonds sur supports hebdomadaires (CAC 40/SRD).")
+st.markdown("Analyse et diagnostic global des supports hebdomadaires (CAC 40/SRD).")
 
-if st.button("🚀 Lancer le scan du marché", type="primary"):
+if st.button("🚀 Lancer le diagnostic complet", type="primary"):
     
     tickers = [
         "AIR.PA", "BNP.PA", "DG.PA", "OR.PA", "SAN.PA", "TTE.PA", "CAP.PA", "GLE.PA",
@@ -33,7 +33,6 @@ if st.button("🚀 Lancer le scan du marché", type="primary"):
             if len(df_daily) < 50 or len(df_weekly) < 20:
                 continue
                 
-            # Calcul RSI simple maison
             delta = df_daily['Close'].diff()
             gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
             loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
@@ -43,20 +42,18 @@ if st.button("🚀 Lancer le scan du marché", type="primary"):
             df_daily['Vol_SMA20'] = df_daily['Volume'].rolling(window=20).mean()
             
             support_hebdo = df_weekly['Low'].rolling(window=20).min().iloc[-1]
-            resistance_hebdo = df_weekly['High'].rolling(window=20).max().iloc[-1]
-            
             dernier = df_daily.iloc[-1]
             
-            # Zone élargie (de 97% à 105% du support hebdomadaire)
-            if dernier['Close'] >= support_hebdo * 0.97 and dernier['Close'] <= support_hebdo * 1.05:
-                results.append({
-                    "Ticker": ticker,
-                    "Prix Actuel": round(dernier['Close'], 2),
-                    "Support Hebdo": round(support_hebdo, 2),
-                    "Écart / Support": f"{round(((dernier['Close'] - support_hebdo) / support_hebdo) * 100, 1)} %",
-                    "RSI (14)": round(dernier['RSI'], 1),
-                    "Volume / Moy20": round(dernier['Volume'] / dernier['Vol_SMA20'], 2) if dernier['Vol_SMA20'] > 0 else 0
-                })
+            ecart_pct = ((dernier['Close'] - support_hebdo) / support_hebdo) * 100
+            
+            results.append({
+                "Ticker": ticker,
+                "Prix Actuel": round(dernier['Close'], 2),
+                "Support Hebdo (Min 20s)": round(support_hebdo, 2),
+                "Écart / Support (%)": round(ecart_pct, 1),
+                "RSI (14)": round(dernier['RSI'], 1),
+                "Volume / Moy20": round(dernier['Volume'] / dernier['Vol_SMA20'], 2) if dernier['Vol_SMA20'] > 0 else 0
+            })
         except Exception as e:
             continue
             
@@ -65,7 +62,9 @@ if st.button("🚀 Lancer le scan du marché", type="primary"):
     
     if results:
         df_res = pd.DataFrame(results)
-        st.success(f"Scan terminé ! {len(results)} opportunité(s) détectée(s) dans la zone élargie.")
+        # Tri pour voir les actions les plus proches du support en premier
+        df_res = df_res.sort_values(by="Écart / Support (%)", ascending=True)
+        st.success(f"Diagnostic terminé ! {len(results)} actions analysées.")
         st.dataframe(df_res, use_container_width=True)
     else:
-        st.info("Aucune action dans la zone cible aujourd'hui.")
+        st.info("Aucune donnée récupérée.")
